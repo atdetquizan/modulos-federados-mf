@@ -1,0 +1,83 @@
+definitions:
+  steps:
+    - step: &InstalllPackages
+        name: Install node packages
+        image: node:12-alpine
+        caches: 
+          - node
+        script: 
+          - echo $VERDACCIO_AUTH >> ~/.npmrc
+          - npm install --registry $VERDACCIO_SERVER
+
+    - step: &EsLint
+        name: Eslint
+        image: node:12-alpine
+        caches: 
+          - node
+        script: 
+          - npm run eslint
+
+    - step: &Test
+        name: Test
+        image: node:12-alpine
+        caches: 
+          - node
+        script: 
+          - npm run test
+
+    - step: &Sonar
+
+    - step: &Build
+        name: Test
+        image: node:12-alpine
+        caches: 
+          - node
+        script: 
+          - npm run build:prod
+          
+    - step: &Deploy
+
+  pipelines:
+    default:
+      - step: *InstalllPackages
+      - parallel: 
+        - step: 
+          <<: *EsLint
+        - step:
+          <<: *Test
+        - step:
+          <<: *Build
+   branches:
+    develop:
+      - step: *InstalllPackages
+      - parallel: 
+        - step: 
+          <<: *EsLint
+        - step: 
+          <<: *Test&Sonar
+        - step: 
+          <<: *Build
+        - step: 
+          <<: *Deploy
+          name: Deploy to Dev
+          deployment: Dev
+    uat:
+      - step: *InstalllPackages
+      - step: *Build
+      - step: 
+        <<: *Deploy
+        name: Deploy to UAT
+        deployment: Uat
+    master:
+      - step: *InstalllPackages
+      - step: *Build
+      - step: 
+        <<: *Deploy
+        name: Deploy to STG
+        deployment: Staging
+        trigger: manual
+      - step: 
+        <<: *Deploy
+        name: Deploy to PRO
+        deployment: Production
+        trigger: manual
