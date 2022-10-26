@@ -1,0 +1,22 @@
+{
+  "name": "example-sass-lib",
+  "version": "1.0.0",
+  "description": "Styles library",
+  "files": [
+    "theme.scss",
+    "src/*"
+  ],
+  "scripts": {
+    "sass-lint": "sass-lint",
+    "live-server": "dead-server devops/dist --cors --port=8091",
+    "build:prd": "node-sass ./theme.scss --output devops/dist --output-style=compressed"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "dead-server": "^1.0.6",
+    "node-sass": "^7.0.3",
+    "sass-lint": "^1.13.1"
+  },
+  "author": "",
+  "license": "ISC"
+}

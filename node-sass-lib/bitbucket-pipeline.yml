@@ -1,0 +1,181 @@
+definitions:
+  steps:
+    - step: &LintingCode
+        name: Run Lint Code
+        image: node:12-alpine
+        caches:
+          - node
+        script:
+          - echo $VERDACCIO_AUTH >> ~/.npmrc
+          - npm install --registry $VERDACCIO_SERVER
+          - npm run sass-lint
+
+    - step: &Build
+        name: Build Project
+        image: node:12-alpine
+        caches:
+          - node
+        script:
+          - echo $VERDACCIO_AUTH >> ~/.npmrc
+          - npm install --registry $VERDACCIO_SERVER
+          - npm run build:prd
+        artifacts:
+          - package.json
+
+    - step: &BuildDev
+        name: Build Documentation - Build Style-guide
+        size: 2x
+        image: node:12-alpine
+        caches:
+          - node
+        script:
+          - echo $VERDACCIO_AUTH >> ~/.npmrc
+          - npm install --registry $VERDACCIO_SERVER
+          - npm run build:dev
+        artifacts:
+          - devops/style-guide/**
+
+    - step: &InstallSnapshot
+        name: Install Snapshot
+        image: node:12-alpine
+        caches:
+          - node
+        script:
+          - echo $VERDACCIO_AUTH >> ~/.npmrc
+          - npm install --registry $VERDACCIO_SERVER
+          - npm run build:prd
+        artifacts:
+          - devops/dist/**
+
+    - step: &NpmPublish
+        name: Publish to npm
+        image: node:12-alpine
+        caches: 
+          - node
+        script: 
+          - echo $VERDACCIO_AUTH >> ~/.npmrc
+          - cat ~/.npmrc
+          - npm publish --registry $VERDACCIO_SERVER
+
+    - step: &DeployK8SDev
+        name: Deploy K8S objects
+        image: mcr.microsoft.com/azure-cli:latest
+        caches:
+          - node
+        script:
+          - AZURE_SAS_TOKEN=$(bash devops/generate-token.sh)
+          - VERSION=$(bash devops/get-version.sh)
+          - echo "RELEASE => $VERSION"
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/style-guide/**'
+              DESTINATION: '$AZURE_BLOB_CONTAINER/style-guide'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true --recursive=true'
+              DEBUG: 'true'
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/homepage.md'
+              DESTINATION: '$AZURE_BLOB_CONTAINER/style-guide/homepage.md'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/dist/theme.css'
+              DESTINATION: '$AZURE_BLOB_CONTAINER/styles/latest/theme.css'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/dist/theme.css'
+              DESTINATION: '$AZURE_BLOB_CONTAINER/styles/$VERSION/theme.css'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+          - sed -i "s|CDN_URL|$CDN_URL|" devops/cdn.template
+          - sed -i "s|VERSION|$VERSION|" devops/cdn.template
+          - cat devops/cdn.template
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/cdn.template'
+              DESTINATION: '$AZURE_FILE_CONTAINER/nginx-conf-hyperloop/style.cdn'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+
+    - step: &DeployK8S
+        name: Deploy K8S objects
+        image: mcr.microsoft.com/azure-cli:latest
+        caches:
+          - node
+        script:
+          - AZURE_SAS_TOKEN=$(bash devops/generate-token.sh)
+          - VERSION=$(bash devops/get-version.sh)
+          - echo "RELEASE => $VERSION"
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/dist/theme.css'
+              DESTINATION: '$AZURE_BLOB_CONTAINER/styles/theme.css'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/dist/theme.css'
+              DESTINATION: '$AZURE_BLOB_CONTAINER/styles/$VERSION/theme.css'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+          - sed -i "s|CDN_URL|$CDN_URL|" devops/cdn.template
+          - sed -i "s|VERSION|$VERSION|" devops/cdn.template
+          - cat devops/cdn.template
+          - pipe: microsoft/azure-storage-deploy:2.0.0
+            variables:
+              SOURCE: 'devops/cdn.template'
+              DESTINATION: '$AZURE_FILE_CONTAINER/nginx-conf-hyperloop/style.cdn'
+              DESTINATION_SAS_TOKEN: $AZURE_SAS_TOKEN
+              EXTRA_ARGS: '--overwrite=true'
+              DEBUG: 'true'
+
+pipelines:
+  custom:
+    custom-name-and-region: #name of this pipeline 01
+      - variables:      #list variable names under here
+          - name: KUBECONFIG_PRD
+  default:
+    - step: *LintingCode
+    - step: *Build
+  branches:
+    develop:
+      - step: *LintingCode
+      - step: *InstallSnapshot
+      - step: *BuildDev
+      - step:
+          <<: *DeployK8SDev
+          name: Deploy to Develop
+          deployment: Dev
+          trigger: manual
+      - step: *NpmPublish
+    uat:
+      - step: *LintingCode
+      - step: *InstallSnapshot
+      - step:
+          <<: *DeployK8S
+          name: Deploy to Uat
+          deployment: Uat
+          trigger: manual
+    master:
+      - step: *LintingCode
+      - step: *InstallSnapshot
+      - step:
+          <<: *DeployK8S
+          name: Deploy to Stg
+          deployment: Staging
+          trigger: manual
+      - step:
+          <<: *DeployK8S
+          name: Deploy to Production
+          deployment: Production
+          trigger: manual

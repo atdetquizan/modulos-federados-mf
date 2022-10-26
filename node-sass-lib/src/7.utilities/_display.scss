@@ -1,0 +1,21 @@
+$attributes: (
+  none,
+  inline,
+  inline-block,
+  block,
+  table,
+  table-cell,
+  table-row,
+  flex,
+  inline-flex
+);
+
+@mixin display-base($value: null) {
+  @each $attribute in $attributes {
+    .d#{if($value, '-#{$value}', '')}-#{$attribute} {
+      display: $attribute  !important; // sass-lint:disable-line no-important
+    }
+  }
+}
+
+@include display-base;
