@@ -1,0 +1,61 @@
+.wrapper {
+  width: 100%;
+  height: 100vh;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  grid-template-areas:
+    "header header header header header"
+    "sidebar main main main main"
+    "sidebar main main main main"
+    "sidebar main main main main"
+    "sidebar main main main main";
+
+  &__header {
+    grid-area: header;
+    background: green;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    &__title {
+      p {
+        font-weight: bold;
+        font-size: 30px;
+      }
+    }
+
+    &__buttons {
+      width: 300px;
+      display: flex;
+      justify-content: space-between;
+
+      button {
+        padding: 10px;
+      }
+    }
+  }
+
+  &__sidebar {
+    grid-area: sidebar;
+    background: green;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    p {
+      font-weight: bold;
+      font-size: 30px;
+    }
+  }
+
+  &__main {
+    grid-area: main;
+    background: yellow;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
